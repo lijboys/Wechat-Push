@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WePush API - 极简微信消息推送服务</title>
+    <style>
+        body { font-family: monospace; background-color: #0d1117; color: #c9d1d9; max-width: 800px; margin: 0 auto; padding: 40px 20px; line-height: 1.6; }
+        h1 { color: #58a6ff; border-bottom: 1px solid #30363d; padding-bottom: 10px; }
+        .code-block { background: #161b22; padding: 15px; border-radius: 6px; border: 1px solid #30363d; overflow-x: auto; color: #79c0ff; }
+        .success { color: #3fb950; }
+    </style>
+</head>
+<body>
+    <h1>WePush API 接口文档</h1>
+    <p>状态：<span class="success">● 核心服务运行正常</span></p>
+    <p>这是一个私有的微信公众号/测试号消息推送接口，支持 GET 和 POST JSON 调用。</p>
+    
+    <h3>🚀 快速调用示例 (GET)</h3>
+    <div class="code-block">
+        GET https://we.nn.kg/api.php?key=YOUR_KEY&title=Hello&content=World
+    </div>
+
+    <h3>📦 Payload 参数说明</h3>
+    <ul>
+        <li><b>key</b>: (必填) 接口鉴权密钥</li>
+        <li><b>title</b>: (可选) 消息标题，默认"通知"</li>
+        <li><b>content</b>: (可选) 消息主体内容</li>
+        <li><b>url</b>: (可选) 点击消息后的跳转链接</li>
+    </ul>
+    
+    <p style="margin-top: 50px; font-size: 0.8em; color: #8b949e;">&copy; 2026 WePush Service. All rights reserved.</p>
+</body>
+</html>
