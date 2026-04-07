@@ -3,76 +3,93 @@ export default {
     const url = new URL(request.url);
 
     // ============================================================
-    // 1. 核心参数解析：全面兼容 Bark模式、URL参数模式、JSON POST模式
+    // 1. 参数解析（POST JSON 优先级最高）
     // ============================================================
-    let requestKey, title, content, clickUrl;
-    
-    // 步骤 A：先尝试从 URL 路径解析 (Bark 模式)
-    const pathSegments = url.pathname.split('/').filter(s => s);
-    if (pathSegments.length >= 2) {
-      requestKey = pathSegments[0];
-      if (pathSegments.length >= 3) {
-        title = decodeURIComponent(pathSegments[1]);
-        content = decodeURIComponent(pathSegments[2]);
-      } else {
-        title = '通知';
-        content = decodeURIComponent(pathSegments[1]);
-      }
-    } else {
-      // 步骤 B：没命中 Bark，回退到普通 URL 参数解析 (?key=...)
-      requestKey = url.searchParams.get('key');
-      title = url.searchParams.get('title') || '通知';
-      content = url.searchParams.get('content') || '无内容';
-    }
+    let requestKey, title = '通知', content = '点击查看详情', clickUrl, titleColor = '#FF0000', contentColor = '#173177';
 
-    // 默认的跳转链接（如果没传的话）
-    clickUrl = url.searchParams.get('url') || 'https://github.com/lijboys/movecar';
-
-    // 步骤 C：如果是 POST 请求且带了 JSON，直接覆盖前面的所有参数 (最高优先级)
+    // 优先处理 POST JSON（最高优先级）
     if (request.method === 'POST' && request.headers.get('content-type')?.includes('application/json')) {
       try {
         const body = await request.json();
-        // 如果 JSON 里有对应字段，就用 JSON 里的，否则保留之前解析出来的
-        requestKey = body.key || requestKey;
+        requestKey = body.key;
         title = body.title || title;
         content = body.content || content;
-        clickUrl = body.url || clickUrl; // 支持在 JSON 里自定义点击通知后的跳转链接
+        clickUrl = body.url || 'https://github.com/lijboys/movecar';
+        titleColor = body.titleColor || titleColor;
+        contentColor = body.contentColor || contentColor;
       } catch (e) {
-        console.error('JSON解析失败，退回URL参数模式', e);
+        return jsonResponse({ success: false, error: 'JSON 解析失败' }, 400);
       }
+    } else {
+      // Bark 路径模式 / Query 参数模式
+      const pathSegments = url.pathname.split('/').filter(Boolean);
+      if (pathSegments.length >= 2) {
+        requestKey = pathSegments[0];
+        try {
+          if (pathSegments.length >= 3) {
+            title = decodeURIComponent(pathSegments[1]);
+            content = decodeURIComponent(pathSegments[2]);
+          } else {
+            content = decodeURIComponent(pathSegments[1]);
+          }
+        } catch (e) {
+          return jsonResponse({ success: false, error: 'URL 编码错误' }, 400);
+        }
+      } else {
+        requestKey = url.searchParams.get('key');
+        title = url.searchParams.get('title') || title;
+        content = url.searchParams.get('content') || content;
+        clickUrl = url.searchParams.get('url') || 'https://github.com/lijboys/movecar';
+        titleColor = url.searchParams.get('titleColor') || titleColor;
+        contentColor = url.searchParams.get('contentColor') || contentColor;
+      }
+    }
+
+    // title 长度限制（微信要求）
+    if (title.length > 64) {
+      title = title.slice(0, 61) + '...';
     }
 
     // ============================================================
     // 2. 安全验证
     // ============================================================
     if (!env.AUTH_KEY) {
-      return new Response('Error: 未在设置中配置 AUTH_KEY', { status: 500 });
+      return jsonResponse({ success: false, error: '未配置 AUTH_KEY' }, 500);
     }
     if (requestKey !== env.AUTH_KEY) {
-      return new Response('Forbidden: 密码错误或未提供', { status: 403 });
+      return jsonResponse({ success: false, error: '密码错误或未提供' }, 403);
     }
 
     // ============================================================
-    // 3. 发送逻辑 (微信测试号)
+    // 3. 发送逻辑
     // ============================================================
     const openid = url.searchParams.get('openid') || env.USER_OPENID;
 
+    console.log(`[推送] title: ${title} | openid: ${openid} | url: ${clickUrl}`);
+
     try {
-      let accessToken = await getAccessToken(env);
-      const result = await sendTemplateMessage(env, accessToken, openid, title, content, clickUrl);
+      const accessToken = await getAccessToken(env);
+      const result = await sendTemplateMessage(env, accessToken, openid, title, content, clickUrl, titleColor, contentColor);
       
-      return new Response(JSON.stringify(result), {
-        headers: { 'content-type': 'application/json;charset=UTF-8' },
-      });
+      return jsonResponse({ success: true, msgid: result.msgid });
     } catch (e) {
-      return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+      console.error('[推送失败]', e);
+      return jsonResponse({ success: false, error: e.message }, 500);
     }
   },
 };
 
-// --- 辅助函数：获取 Token (带 KV 缓存) ---
+// 统一 JSON 响应辅助函数
+function jsonResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'content-type': 'application/json;charset=UTF-8' },
+  });
+}
+
+// --- 获取 Token（带 KV 缓存 + appid 后缀）---
 async function getAccessToken(env) {
-  const cacheKey = 'wechat_test_account_token_v1';
+  const cacheKey = `wechat_token_${env.APP_ID}`;
   let token = await env.WX_KV.get(cacheKey);
   if (token) return token;
 
@@ -88,8 +105,8 @@ async function getAccessToken(env) {
   return data.access_token;
 }
 
-// --- 辅助函数：发送模板消息 ---
-async function sendTemplateMessage(env, token, openid, title, content, clickUrl) {
+// --- 发送模板消息 ---
+async function sendTemplateMessage(env, token, openid, title, content, clickUrl, titleColor, contentColor) {
   const sendUrl = `https://api.weixin.qq.com/cgi-bin/message/template/send?access_token=${token}`;
   
   const payload = {
@@ -97,8 +114,8 @@ async function sendTemplateMessage(env, token, openid, title, content, clickUrl)
     template_id: env.TEMPLATE_ID,
     url: clickUrl,
     data: {
-      title: { value: title, color: '#FF0000' }, 
-      content: { value: content, color: '#173177' } 
+      title: { value: title, color: titleColor },
+      content: { value: content, color: contentColor }
     }
   };
 
@@ -109,7 +126,7 @@ async function sendTemplateMessage(env, token, openid, title, content, clickUrl)
   
   const result = await resp.json();
   if (result.errcode !== 0) {
-     throw new Error(`发送失败: ${result.errmsg}`);
+    throw new Error(`发送失败: ${result.errmsg}`);
   }
-  return { success: true, msgid: result.msgid };
+  return { msgid: result.msgid };
 }
