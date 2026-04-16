@@ -1,20 +1,9 @@
-**✅ 已按你的要求全部优化完成！**
-
-- `README.md` 已更新：**所有配置变量部分** 全部改成**清晰的 Markdown 表格**（包含「参数名」「描述」「是否必填」「示例/默认值」「备注」）。
-- 表格分两类：**非敏感变量（Variables）** 和 **密钥（Secrets）**，一目了然。
-- 其他文件（`wrangler.toml`、`deploy.yml`、`_worker.js`）**无需再改**，已完全兼容 `_worker.js` + Pages/Worker 双部署。
-
----
-
-### **直接复制下面全部内容，替换你的 `README.md`**：
-
-```markdown
 # 微信测试号通知 Cloudflare Worker（终极融合版）
 
 [![自动部署](https://github.com/lijboys/Wechat-Push/actions/workflows/deploy.yml/badge.svg)](https://github.com/lijboys/Wechat-Push/actions/workflows/deploy.yml)
 
 **最干净、最灵活的微信测试号通知项目**
-支持三种调用方式 + 卡片点击跳转自定义详情页 + KV 持久化缓存 + **同时支持 Worker 和 Pages 部署**。
+支持三种调用方式 + 卡片点击跳转自定义详情页 + KV 持久化缓存 + **速率限制** + **同时支持 Worker 和 Pages 部署**。
 
 ---
 
@@ -23,6 +12,7 @@
 - 三种调用方式：POST JSON（推荐） + Bark 路径 + Query 参数
 - 通知卡片点击自动跳转自定义详情页（传入 `url` 即可）
 - KV 持久化 Token 缓存
+- **速率限制**：每分钟每个 openid 最多 5 次（使用 KV 持久化，防止滥用）
 - 支持自定义颜色、CORS、首页状态页
 - 零依赖、免费额度充足
 
@@ -45,19 +35,19 @@ Wechat-Push/
 
 ### 非敏感变量（Variables / [vars]）
 
-| 参数名            | 描述                          | 是否必填 | 示例/默认值                              | 备注 |
-|-------------------|-------------------------------|----------|------------------------------------------|------|
-| `TEMPLATE_ID`     | 微信模板消息 ID               | **必填** | `kL9vX8mPqR2tY7uW3xZ`                   | 必须在微信测试号后台创建模板 |
-| `USER_OPENID`     | 默认接收通知的用户 openid     | 可选     | `oabcdef1234567890`                      | 留空时必须在调用时传入 openid |
-| `DEFAULT_CLICK_URL` | 默认详情页跳转地址          | 可选     | `https://github.com/lijboys/Wechat-Push` | 卡片右下角「点击查看详情」跳转地址 |
+| 参数名              | 描述                          | 是否必填 | 示例/默认值                              | 备注 |
+|---------------------|-------------------------------|----------|------------------------------------------|------|
+| `TEMPLATE_ID`       | 微信模板消息 ID               | **必填** | `kL9vX8mPqR2tY7uW3xZ`                   | 必须在微信测试号后台创建模板 |
+| `USER_OPENID`       | 默认接收通知的用户 openid     | 可选     | `oabcdef1234567890`                      | 留空时必须在调用时传入 openid |
+| `DEFAULT_CLICK_URL` | 默认详情页跳转地址            | 可选     | `https://github.com/lijboys/Wechat-Push` | 卡片右下角「点击查看详情」跳转地址 |
 
 ### 密钥（Secrets）
 
-| 参数名         | 描述                   | 是否必填 | 示例值                     | 备注 |
-|----------------|------------------------|----------|----------------------------|------|
-| `AUTH_KEY`     | 接口调用密码           | **必填** | `myStrongPassword123!`     | 强烈建议设置，防止他人滥用 |
-| `APP_ID`       | 微信测试号 AppID       | **必填** | `wx1234567890abcdef`       | 从微信测试号后台获取 |
-| `APP_SECRET`   | 微信测试号 AppSecret   | **必填** | `a1b2c3d4e5f6g7h8i9j0k1l2` | 从微信测试号后台获取 |
+| 参数名       | 描述                   | 是否必填 | 示例值                     | 备注 |
+|--------------|------------------------|----------|----------------------------|------|
+| `AUTH_KEY`   | 接口调用密码           | **必填** | `myStrongPassword123!`     | 强烈建议设置，防止他人滥用 |
+| `APP_ID`     | 微信测试号 AppID       | **必填** | `wx1234567890abcdef`       | 从微信测试号后台获取 |
+| `APP_SECRET` | 微信测试号 AppSecret   | **必填** | `a1b2c3d4e5f6g7h8i9j0k1l2` | 从微信测试号后台获取 |
 
 **KV Namespace**：名称固定为 `wechat-push`，Variable name 为 `WX_KV`（Action 或网页版均需绑定）。
 
@@ -135,10 +125,3 @@ fetch('https://wechat-push.你的子域名.workers.dev/notify', {
 2. 获取 AppID、AppSecret
 3. 创建模板消息（字段建议：`title`、`content`）
 4. 把模板 ID 填入 `TEMPLATE_ID`
-
----
-
-**项目已完全就绪**
-`_worker.js` 同时支持 Worker 和 Pages 部署，配置全部表格化，一看就懂。
-需要增加速率限制、批量发送或其他功能，随时告诉我，我立刻帮你加上！🚀
-```
