@@ -1,5 +1,5 @@
 name = "wechat-notify-worker"
-main = "src/index.js"
+main = "index.js"                          # ← 这里改成 index.js（必须修改！）
 compatibility_date = "2025-04-01"
 compatibility_flags = ["nodejs_compat"]
 
@@ -10,9 +10,9 @@ kv_namespaces = [
 
 # 非敏感配置
 [vars]
-TEMPLATE_ID = "你的微信模板消息ID"          # 必须在测试号后台创建
-USER_OPENID = ""                             # 可选，默认测试用户 openid
-DEFAULT_CLICK_URL = "https://github.com/lijboys/movecar"  # 默认跳转地址
+TEMPLATE_ID = "你的微信模板消息ID"
+USER_OPENID = ""
+DEFAULT_CLICK_URL = "https://github.com/lijboys/movecar"   # 可改成你自己的默认详情页
 
 # 部署后执行以下命令设置密钥：
 # wrangler secret put AUTH_KEY
