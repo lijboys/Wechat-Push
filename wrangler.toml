@@ -1,15 +1,15 @@
-name = "wechat-notify-worker"
-main = "index.js"
+name = "wechat-push"
+main = "_worker.js"                          # ← 这里必须改成 _worker.js
 compatibility_date = "2025-04-01"
 compatibility_flags = ["nodejs_compat"]
 
-# ==================== KV 绑定（占位符，由 Action 自动替换） ====================
+# ==================== KV 绑定（由 GitHub Action 自动替换） ====================
 kv_namespaces = [
   { binding = "WX_KV", id = "KV_ID_PLACEHOLDER" }
 ]
 
 # 非敏感配置
 [vars]
-TEMPLATE_ID = "你的微信模板消息ID"          # 必须在测试号后台创建
+TEMPLATE_ID = "你的微信模板消息ID"
 USER_OPENID = ""
-DEFAULT_CLICK_URL = "https://github.com/lijboys/movecar"
+DEFAULT_CLICK_URL = "https://github.com/lijboys/Wechat-Push"
