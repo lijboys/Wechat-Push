@@ -1,139 +1,144 @@
+**✅ 已按你的要求全部优化完成！**
+
+- `README.md` 已更新：**所有配置变量部分** 全部改成**清晰的 Markdown 表格**（包含「参数名」「描述」「是否必填」「示例/默认值」「备注」）。
+- 表格分两类：**非敏感变量（Variables）** 和 **密钥（Secrets）**，一目了然。
+- 其他文件（`wrangler.toml`、`deploy.yml`、`_worker.js`）**无需再改**，已完全兼容 `_worker.js` + Pages/Worker 双部署。
+
+---
+
+### **直接复制下面全部内容，替换你的 `README.md`**：
+
+```markdown
 # 微信测试号通知 Cloudflare Worker（终极融合版）
 
+[![自动部署](https://github.com/lijboys/Wechat-Push/actions/workflows/deploy.yml/badge.svg)](https://github.com/lijboys/Wechat-Push/actions/workflows/deploy.yml)
 
-
-**一个结构最完整、调用最灵活、功能最完善的 Cloudflare Worker 项目**
-
-完美融合了「标准 API 调用」与「Bark 路径兼容模式」，支持**任意第三方项目接入**，并实现**微信通知卡片点击自动跳转自定义详情页**。
-
----
-
-## ✨ 核心功能亮点
-
-- ✅ **三种调用方式**：POST JSON（推荐） + Bark 路径模式（`/key/标题/内容`） + Query 参数
-- ✅ **通知卡片点击跳转**：传入 `url` 参数后，微信卡片右下角「点击查看详情」直接跳转到你指定的网页
-- ✅ **KV 持久化 Token 缓存**：比内存缓存更稳定，支持多实例
-- ✅ **自定义颜色**：支持 `titleColor`、`contentColor`
-- ✅ **鉴权灵活**：支持 `AUTH_KEY`（路径/Query）或 `X-API-Key`（Header）
-- ✅ **完整 CORS + 首页状态页**：任意语言、任意前端/后端均可调用
-- ✅ **GitHub Actions 自动部署**：`git push` 即自动上线
-- ✅ **零依赖、无数据库**：纯 Worker + KV，免费额度充足
+**最干净、最灵活的微信测试号通知项目**
+支持三种调用方式 + 卡片点击跳转自定义详情页 + KV 持久化缓存 + **同时支持 Worker 和 Pages 部署**。
 
 ---
 
-## 📁 项目结构
+## ✨ 核心功能
+
+- 三种调用方式：POST JSON（推荐） + Bark 路径 + Query 参数
+- 通知卡片点击自动跳转自定义详情页（传入 `url` 即可）
+- KV 持久化 Token 缓存
+- 支持自定义颜色、CORS、首页状态页
+- 零依赖、免费额度充足
+
+---
+
+## 📁 项目结构（已改为 _worker.js）
 
 ```
-wechat-notify-worker/
-├── .github/workflows/deploy.yml     # 自动部署 Workflow
-├── wrangler.toml                    # Cloudflare 配置 + KV 绑定
+Wechat-Push/
+├── .github/workflows/deploy.yml     # GitHub Actions 全自动部署（Worker）
+├── wrangler.toml                    # 配置（Actions 专用）
 ├── package.json
 ├── README.md
-└── src/
-    └── index.js                     # 核心 Worker 代码（已极致优化）
+└── _worker.js                       # 核心代码（已重命名，支持 Pages）
 ```
 
 ---
 
-## 🚀 部署步骤（5 分钟完成）
+## 📋 配置参数说明（必看）
 
-### 1. 创建 KV Namespace（必须）
-1. 登录 Cloudflare 仪表盘 → **KV** → **Create a namespace**
-2. 名称随意（如 `wechat-token`）
-3. 复制生成的 **Namespace ID**，填入 `wrangler.toml` 中的 `kv_namespaces`
+### 非敏感变量（Variables / [vars]）
 
-### 2. 克隆/创建项目并配置
-```bash
-# 复制项目文件（wrangler.toml、package.json、src/index.js）
-npm install
-```
+| 参数名            | 描述                          | 是否必填 | 示例/默认值                              | 备注 |
+|-------------------|-------------------------------|----------|------------------------------------------|------|
+| `TEMPLATE_ID`     | 微信模板消息 ID               | **必填** | `kL9vX8mPqR2tY7uW3xZ`                   | 必须在微信测试号后台创建模板 |
+| `USER_OPENID`     | 默认接收通知的用户 openid     | 可选     | `oabcdef1234567890`                      | 留空时必须在调用时传入 openid |
+| `DEFAULT_CLICK_URL` | 默认详情页跳转地址          | 可选     | `https://github.com/lijboys/Wechat-Push` | 卡片右下角「点击查看详情」跳转地址 |
 
-### 3. 设置密钥（强烈建议）
-```bash
-npx wrangler secret put AUTH_KEY          # 接口密码
-npx wrangler secret put APP_ID            # 微信测试号 AppID
-npx wrangler secret put APP_SECRET        # 微信测试号 AppSecret
-```
+### 密钥（Secrets）
 
-### 4. 配置 wrangler.toml（示例）
-```toml
-name = "wechat-notify-worker"
-main = "src/index.js"
-compatibility_date = "2025-04-01"
-compatibility_flags = ["nodejs_compat"]
+| 参数名         | 描述                   | 是否必填 | 示例值                     | 备注 |
+|----------------|------------------------|----------|----------------------------|------|
+| `AUTH_KEY`     | 接口调用密码           | **必填** | `myStrongPassword123!`     | 强烈建议设置，防止他人滥用 |
+| `APP_ID`       | 微信测试号 AppID       | **必填** | `wx1234567890abcdef`       | 从微信测试号后台获取 |
+| `APP_SECRET`   | 微信测试号 AppSecret   | **必填** | `a1b2c3d4e5f6g7h8i9j0k1l2` | 从微信测试号后台获取 |
 
-kv_namespaces = [
-  { binding = "WX_KV", id = "你的_KV_ID_填这里" }
-]
-
-[vars]
-TEMPLATE_ID = "你的微信模板ID"          # 必须在测试号后台创建
-USER_OPENID = "默认测试openid"           # 可选
-DEFAULT_CLICK_URL = "https://你的默认详情页.com"
-```
-
-### 5. 部署
-- 本地：`npm run deploy`
-- 自动：`git push`（推荐使用 GitHub Actions）
+**KV Namespace**：名称固定为 `wechat-push`，Variable name 为 `WX_KV`（Action 或网页版均需绑定）。
 
 ---
 
-## 🔗 第三方项目调用方式（超级灵活）
+## 🚀 部署方式（二选一）
 
-Worker 部署后的地址示例：
+### 方式一：GitHub Actions 全自动部署（推荐，无需终端）
+1. 在 GitHub **Settings → Secrets and variables → Actions** 添加上方表格中的 5 个 Secrets。
+2. 直接 `git push` 或在网页编辑保存。
+
+Action 会自动完成 KV 创建、绑定、密钥设置、Worker 部署。
+部署地址：`https://wechat-push.你的子域名.workers.dev`
+
+---
+
+### 方式二：Cloudflare 网页版部署（纯网页操作，最简单）
+
+**选项 A：纯 Worker 部署（推荐新手）**
+1. 登录 [Cloudflare 仪表盘](https://dash.cloudflare.com) → **Workers & Pages** → **Create Worker**
+2. 名称填 `wechat-push` → 点击 **Deploy**
+3. 点击 **Quick Edit** → 粘贴 `_worker.js` 全部代码 → **Save and deploy**
+4. 切换到 **Settings** 标签页：
+   - **KV Namespace Bindings** → 添加 `WX_KV` 并绑定 `wechat-push`
+   - **Variables** → 按上方表格添加 `TEMPLATE_ID`、`USER_OPENID`、`DEFAULT_CLICK_URL`
+   - **Secrets** → 按上方表格添加 `AUTH_KEY`、`APP_ID`、`APP_SECRET`
+5. **Save** → **Deploy**
+
+**选项 B：Cloudflare Pages 部署（支持以后加静态页面）**
+1. **Workers & Pages** → **Pages** → **Connect to Git** → 选择仓库
+2. Framework preset 选 **None**，Build command 和 Build output directory 留空
+3. Pages 会**自动识别 `_worker.js`** 作为 Worker
+4. 部署完成后在 **Settings** 中按上方表格配置 Variables、Secrets、KV 绑定
+部署地址：`https://wechat-push.你的子域名.pages.dev`
+
+---
+
+## 🔗 调用方式（两种部署方式完全一致）
+
+Worker/Pages 地址示例：
 ```
-https://wechat-notify-worker.你的子域名.workers.dev
+https://wechat-push.你的子域名.workers.dev
 ```
 
-### 1. POST JSON（推荐，最干净）
+**1. POST JSON（推荐）**
 ```js
-// Node.js / TypeScript / 任意语言
-const res = await fetch('https://你的-worker.workers.dev/notify', {
+fetch('https://wechat-push.你的子域名.workers.dev/notify', {
   method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'X-API-Key': '你的 AUTH_KEY'          // 可选
-  },
+  headers: { 'Content-Type': 'application/json', 'X-API-Key': '你的AUTH_KEY' },
   body: JSON.stringify({
-    openid: '用户openid',                  // 必填
+    openid: '用户openid',
     title: '订单已发货',
-    content: '您的订单 #123456 已发货，预计明日送达',
-    url: 'https://your-project.com/order/123456',   // ← 关键：点击跳转详情页
+    content: '您的订单 #123456 已发货',
+    url: 'https://your-project.com/detail/123',   // 点击卡片跳转
     titleColor: '#FF0000',
     contentColor: '#173177'
   })
-});
+})
 ```
 
-### 2. Bark 路径模式（兼容 iOS 快捷指令等）
+**2. Bark 路径模式**
 ```
-https://你的-worker.workers.dev/你的AUTH_KEY/订单已发货/您的订单已发货?url=https://your-project.com/detail/123
-```
-
-### 3. Query 参数模式（快捷测试）
-```
-https://你的-worker.workers.dev/notify?key=你的AUTH_KEY&openid=用户openid&title=测试标题&content=测试内容&url=https://example.com/detail
+/你的AUTH_KEY/订单已发货/您的订单已发货?url=https://your-project.com/detail/123
 ```
 
-**只要传入 `url` 参数**，用户在微信里点击通知卡片就会**直接跳转**到你设置的详情网页！
+**3. Query 参数模式**
+```
+/notify?key=你的AUTH_KEY&openid=xxx&title=标题&content=内容&url=跳转地址
+```
 
 ---
 
 ## 微信测试号配置提醒
-
 1. 打开 [微信公众平台测试账号](https://mp.weixin.qq.com/debug/cgi-bin/sandboxinfo)
-2. 获取 **AppID** 和 **AppSecret**
+2. 获取 AppID、AppSecret
 3. 创建模板消息（字段建议：`title`、`content`）
-4. 把模板 ID 填入 `wrangler.toml` 的 `TEMPLATE_ID`
+4. 把模板 ID 填入 `TEMPLATE_ID`
 
 ---
 
-## 安全建议
-
-- 强烈建议设置 `AUTH_KEY`，防止接口被滥用
-- 生产环境可进一步增加速率限制（需要时告诉我，我可以帮你加上）
-
----
-
-**项目已完全生产就绪**
-支持无限第三方项目接入，代码逻辑清晰、注释完善、兼容性最强。
+**项目已完全就绪**
+`_worker.js` 同时支持 Worker 和 Pages 部署，配置全部表格化，一看就懂。
+需要增加速率限制、批量发送或其他功能，随时告诉我，我立刻帮你加上！🚀
+```
