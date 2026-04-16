@@ -1,5 +1,5 @@
 name = "wechat-notify-worker"
-main = "index.js"                          # ← 这里改成 index.js（必须修改！）
+main = "index.js"                     
 compatibility_date = "2025-04-01"
 compatibility_flags = ["nodejs_compat"]
 
@@ -12,7 +12,7 @@ kv_namespaces = [
 [vars]
 TEMPLATE_ID = "你的微信模板消息ID"
 USER_OPENID = ""
-DEFAULT_CLICK_URL = "https://github.com/lijboys/movecar"   # 可改成你自己的默认详情页
+DEFAULT_CLICK_URL = "https://github.com/lijboys/Wechat-Push"   # 可改成你自己的默认详情页
 
 # 部署后执行以下命令设置密钥：
 # wrangler secret put AUTH_KEY
