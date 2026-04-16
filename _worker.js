@@ -12,7 +12,7 @@ export default {
     }
 
     if (url.pathname === '/' && request.method === 'GET') {
-      return new Response(`<h1 style="font-family: system-ui; text-align: center; margin-top: 100px; color: #00b96b;">✅ 微信测试号通知 Worker 已启动<br><small>支持速率限制 + KV 自动绑定</small></h1>`, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+      return new Response(`<h1 style="font-family: system-ui; text-align: center; margin-top: 100px; color: #00b96b;">✅ 微信测试号通知 Worker 已启动<br><small>支持速率限制（5次/分钟/用户） + _worker.js + Pages/Worker 双部署</small></h1>`, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
     }
 
     return handleNotify(request, env, corsHeaders, url);
@@ -27,17 +27,17 @@ async function handleNotify(request, env, corsHeaders, url) {
       return jsonResponse({ success: false, error: '鉴权失败' }, 403, corsHeaders);
     }
 
-    // ====================== 新增：速率限制（每分钟每个 openid 最多 5 次） ======================
+    // ====================== 速率限制（每分钟每个 openid 最多 5 次） ======================
     const body = request.method === 'POST' && request.headers.get('content-type')?.includes('application/json')
       ? await request.json().catch(() => ({}))
       : {};
     const openid = body.openid || url.searchParams.get('openid') || env.USER_OPENID;
     if (openid && !(await checkRateLimit(env, openid))) {
-      return jsonResponse({ success: false, error: '请求过于频繁，请稍后再试（限流：5次/分钟）' }, 429, corsHeaders);
+      return jsonResponse({ success: false, error: '请求过于频繁，请稍后再试（限流：5次/分钟/用户）' }, 429, corsHeaders);
     }
 
     // 参数解析（保持原有三种方式）
-    let title = '通知', content = '点击查看详情', clickUrl = env.DEFAULT_CLICK_URL || 'https://github.com/lijboys/movecar';
+    let title = '通知', content = '点击查看详情', clickUrl = env.DEFAULT_CLICK_URL || 'https://github.com/lijboys/Wechat-Push';
     let titleColor = '#FF0000', contentColor = '#173177';
 
     if (request.method === 'POST' && request.headers.get('content-type')?.includes('application/json')) {
@@ -67,14 +67,14 @@ async function handleNotify(request, env, corsHeaders, url) {
   }
 }
 
-// ====================== 速率限制（使用 KV） ======================
+// ====================== 速率限制函数（使用 KV 持久化） ======================
 async function checkRateLimit(env, openid) {
   const key = `rate:${openid}`;
   const now = Math.floor(Date.now() / 1000);
   const window = 60; // 60秒窗口
   const limit = 5;   // 每分钟最多5次
 
-  const current = await env.WX_KV.get(key, { type: 'json' }) || { count: 0, reset: now + window };
+  let current = await env.WX_KV.get(key, { type: 'json' }) || { count: 0, reset: now + window };
 
   if (now > current.reset) {
     current.count = 1;
@@ -93,6 +93,42 @@ function jsonResponse(data, status = 200, corsHeaders) {
   return new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json;charset=UTF-8' } });
 }
 
-// 下面 getAccessToken 和 sendTemplateMessage 保持你原来的代码（无需改动）
-async function getAccessToken(env) { /* ... 原有代码 ... */ }
-async function sendTemplateMessage(env, token, openid, title, content, clickUrl, titleColor, contentColor) { /* ... 原有代码 ... */ }
+// ====================== 获取 AccessToken（KV 缓存 2 小时） ======================
+async function getAccessToken(env) {
+  const cacheKey = 'wechat_access_token';
+  let token = await env.WX_KV.get(cacheKey);
+  if (token) return token;
+
+  const url = `https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${env.APP_ID}&secret=${env.APP_SECRET}`;
+  const res = await fetch(url);
+  const data = await res.json();
+
+  if (!data.access_token) throw new Error(data.errmsg || '获取 access_token 失败');
+  token = data.access_token;
+
+  await env.WX_KV.put(cacheKey, token, { expirationTtl: 7200 }); // 2 小时
+  return token;
+}
+
+// ====================== 发送微信模板消息 ======================
+async function sendTemplateMessage(env, token, openid, title, content, clickUrl, titleColor, contentColor) {
+  const url = `https://api.weixin.qq.com/cgi-bin/message/template/send?access_token=${token}`;
+  const body = {
+    touser: openid,
+    template_id: env.TEMPLATE_ID,
+    url: clickUrl,
+    data: {
+      title: { value: title, color: titleColor },
+      content: { value: content, color: contentColor }
+    }
+  };
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const result = await res.json();
+  if (result.errcode) throw new Error(result.errmsg);
+  return result;
+}
