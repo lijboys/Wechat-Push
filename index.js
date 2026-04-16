@@ -106,7 +106,7 @@ async function getAccessToken(env) {
 
   if (data.errcode) throw new Error(`获取 Token 失败: ${data.errmsg}`);
 
-  await env.WX_KV.put(cacheKey, data.access_token, { expirationTtl: 7000 });
+  await env.WX_KV.put(cacheKey, data.access_token, { expirationTtl: 6900 });
   return data.access_token;
 }
 
