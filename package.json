@@ -1,0 +1,12 @@
+{
+  "name": "wechat-notify-worker",
+  "version": "2.0.0",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "secret": "wrangler secret put"
+  },
+  "devDependencies": {
+    "wrangler": "^3.78.0"
+  }
+}
