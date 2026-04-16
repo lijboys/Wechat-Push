@@ -1,4 +1,4 @@
-name: 🚀 自动部署到 Cloudflare Workers
+name: 🚀 全自动部署微信通知 Worker（含 KV + 密钥 + 速率限制）
 
 on:
   push:
@@ -23,13 +23,44 @@ jobs:
       - name: 📦 安装依赖
         run: npm ci
 
-      - name: 🔐 登录 Cloudflare 并部署
+      # ====================== 1. 自动创建 KV Namespace（名称 wechat-push） ======================
+      - name: 🔑 自动创建/获取 KV Namespace (wechat-push)
+        id: kv
+        run: |
+          # 创建 KV（如果已存在会报错，我们用 || true 忽略）
+          npx wrangler kv:namespace create wechat-push --json || true
+          # 获取已存在的 KV ID
+          KV_ID=$(npx wrangler kv:namespace list --json | jq -r '.[] | select(.title=="wechat-push") | .id')
+          echo "KV_ID=$KV_ID" >> $GITHUB_ENV
+          echo "✅ KV Namespace ID (wechat-push): $KV_ID"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # ====================== 2. 自动替换 wrangler.toml 中的 KV ID ======================
+      - name: 📝 自动绑定 KV ID 到 wrangler.toml
+        run: |
+          sed -i "s/KV_ID_PLACEHOLDER/${{ env.KV_ID }}/g" wrangler.toml
+          cat wrangler.toml
+
+      # ====================== 3. 自动设置 Cloudflare 密钥 ======================
+      - name: 🔐 自动设置 Cloudflare Secrets
+        run: |
+          echo "${{ secrets.WECHAT_AUTH_KEY }}" | npx wrangler secret put AUTH_KEY
+          echo "${{ secrets.WECHAT_APP_ID }}" | npx wrangler secret put APP_ID
+          echo "${{ secrets.WECHAT_APP_SECRET }}" | npx wrangler secret put APP_SECRET
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # ====================== 4. 正式部署（Worker 项目名称改为 wechat-push） ======================
+      - name: 🚀 部署 Worker（名称 wechat-push）
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --name wechat-notify-worker
+          command: deploy --name wechat-push
 
-      - name: 🎉 部署成功
+      - name: 🎉 部署完成
         if: success()
-        run: echo "✅ Worker 已自动部署！URL: https://wechat-notify-worker.你的子域名.workers.dev"
+        run: echo "✅ 全部自动完成！KV 已绑定为 wechat-push，Worker 项目名称为 wechat-push，URL: https://wechat-push.你的子域名.workers.dev"
