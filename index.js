@@ -1,93 +1,100 @@
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, X-API-Key',
+    };
 
-    // ============================================================
-    // 1. 参数解析（POST JSON 优先级最高）
-    // ============================================================
-    let requestKey, title = '通知', content = '点击查看详情', clickUrl, titleColor = '#FF0000', contentColor = '#173177';
-
-    // 优先处理 POST JSON（最高优先级）
-    if (request.method === 'POST' && request.headers.get('content-type')?.includes('application/json')) {
-      try {
-        const body = await request.json();
-        requestKey = body.key;
-        title = body.title || title;
-        content = body.content || content;
-        clickUrl = body.url || 'https://github.com/lijboys/movecar';
-        titleColor = body.titleColor || titleColor;
-        contentColor = body.contentColor || contentColor;
-      } catch (e) {
-        return jsonResponse({ success: false, error: 'JSON 解析失败' }, 400);
-      }
-    } else {
-      // Bark 路径模式 / Query 参数模式
-      const pathSegments = url.pathname.split('/').filter(Boolean);
-      if (pathSegments.length >= 2) {
-        requestKey = pathSegments[0];
-        try {
-          if (pathSegments.length >= 3) {
-            title = decodeURIComponent(pathSegments[1]);
-            content = decodeURIComponent(pathSegments[2]);
-          } else {
-            content = decodeURIComponent(pathSegments[1]);
-          }
-        } catch (e) {
-          return jsonResponse({ success: false, error: 'URL 编码错误' }, 400);
-        }
-      } else {
-        requestKey = url.searchParams.get('key');
-        title = url.searchParams.get('title') || title;
-        content = url.searchParams.get('content') || content;
-        clickUrl = url.searchParams.get('url') || 'https://github.com/lijboys/movecar';
-        titleColor = url.searchParams.get('titleColor') || titleColor;
-        contentColor = url.searchParams.get('contentColor') || contentColor;
-      }
+    // OPTIONS 预检
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { headers: corsHeaders });
     }
 
-    // title 长度限制（微信要求）
-    if (title.length > 64) {
-      title = title.slice(0, 61) + '...';
+    // 首页状态页
+    if (url.pathname === '/' && request.method === 'GET') {
+      return new Response(
+        `<h1 style="font-family: system-ui; text-align: center; margin-top: 100px; color: #00b96b;">
+          ✅ 微信测试号通知 Worker 已启动<br>
+          <small style="color:#64748b">支持 POST /notify + Bark 路径模式</small>
+        </h1>`,
+        { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+      );
     }
 
-    // ============================================================
-    // 2. 安全验证
-    // ============================================================
-    if (!env.AUTH_KEY) {
-      return jsonResponse({ success: false, error: '未配置 AUTH_KEY' }, 500);
-    }
-    if (requestKey !== env.AUTH_KEY) {
-      return jsonResponse({ success: false, error: '密码错误或未提供' }, 403);
-    }
-
-    // ============================================================
-    // 3. 发送逻辑
-    // ============================================================
-    const openid = url.searchParams.get('openid') || env.USER_OPENID;
-
-    console.log(`[推送] title: ${title} | openid: ${openid} | url: ${clickUrl}`);
-
-    try {
-      const accessToken = await getAccessToken(env);
-      const result = await sendTemplateMessage(env, accessToken, openid, title, content, clickUrl, titleColor, contentColor);
-      
-      return jsonResponse({ success: true, msgid: result.msgid });
-    } catch (e) {
-      console.error('[推送失败]', e);
-      return jsonResponse({ success: false, error: e.message }, 500);
-    }
-  },
+    // 核心通知接口
+    return handleNotify(request, env, corsHeaders, url);
+  }
 };
 
-// 统一 JSON 响应辅助函数
-function jsonResponse(data, status = 200) {
+// ====================== 核心处理 ======================
+async function handleNotify(request, env, corsHeaders, url) {
+  try {
+    // 1. 鉴权（支持 X-API-Key 或路径中的 key）
+    const authKey = request.headers.get('X-API-Key') ||
+                   url.pathname.split('/').filter(Boolean)[0];
+    if (env.AUTH_KEY && authKey !== env.AUTH_KEY) {
+      return jsonResponse({ success: false, error: '鉴权失败' }, 403, corsHeaders);
+    }
+
+    // 2. 参数解析（POST JSON 优先 → 路径模式 → Query 参数）
+    let title = '通知', content = '点击查看详情', clickUrl = env.DEFAULT_CLICK_URL || 'https://github.com/lijboys/movecar';
+    let titleColor = '#FF0000', contentColor = '#173177';
+    let openid = env.USER_OPENID;
+
+    if (request.method === 'POST' && request.headers.get('content-type')?.includes('application/json')) {
+      const body = await request.json();
+      title = body.title || title;
+      content = body.content || content;
+      clickUrl = body.url || clickUrl;
+      titleColor = body.titleColor || titleColor;
+      contentColor = body.contentColor || contentColor;
+      openid = body.openid || openid;
+    } else {
+      // Bark 路径模式：/AUTH_KEY/标题/内容
+      const segments = url.pathname.split('/').filter(Boolean);
+      if (segments.length >= 3) {
+        title = decodeURIComponent(segments[1]);
+        content = decodeURIComponent(segments[2]);
+      } else if (segments.length >= 2) {
+        content = decodeURIComponent(segments[1]);
+      }
+      // Query 参数兜底
+      openid = url.searchParams.get('openid') || openid;
+      clickUrl = url.searchParams.get('url') || clickUrl;
+      titleColor = url.searchParams.get('titleColor') || titleColor;
+      contentColor = url.searchParams.get('contentColor') || contentColor;
+    }
+
+    if (!openid) {
+      return jsonResponse({ success: false, error: '缺少 openid 参数' }, 400, corsHeaders);
+    }
+
+    // 3. 发送
+    const accessToken = await getAccessToken(env);
+    const result = await sendTemplateMessage(env, accessToken, openid, title, content, clickUrl, titleColor, contentColor);
+
+    return jsonResponse({
+      success: true,
+      msgid: result.msgid,
+      message: '通知发送成功，卡片点击可跳转详情页'
+    }, 200, corsHeaders);
+
+  } catch (e) {
+    console.error('通知失败:', e);
+    return jsonResponse({ success: false, error: e.message }, 500, corsHeaders);
+  }
+}
+
+function jsonResponse(data, status = 200, corsHeaders) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'content-type': 'application/json;charset=UTF-8' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json;charset=UTF-8' },
   });
 }
 
-// --- 获取 Token（带 KV 缓存 + appid 后缀）---
+// ====================== KV Token 缓存 ======================
 async function getAccessToken(env) {
   const cacheKey = `wechat_token_${env.APP_ID}`;
   let token = await env.WX_KV.get(cacheKey);
@@ -97,22 +104,20 @@ async function getAccessToken(env) {
   const resp = await fetch(tokenUrl);
   const data = await resp.json();
 
-  if (data.errcode) {
-    throw new Error(`获取Token失败: ${data.errmsg}`);
-  }
+  if (data.errcode) throw new Error(`获取 Token 失败: ${data.errmsg}`);
 
   await env.WX_KV.put(cacheKey, data.access_token, { expirationTtl: 7000 });
   return data.access_token;
 }
 
-// --- 发送模板消息 ---
+// ====================== 发送模板消息 ======================
 async function sendTemplateMessage(env, token, openid, title, content, clickUrl, titleColor, contentColor) {
   const sendUrl = `https://api.weixin.qq.com/cgi-bin/message/template/send?access_token=${token}`;
-  
+
   const payload = {
     touser: openid,
     template_id: env.TEMPLATE_ID,
-    url: clickUrl,
+    url: clickUrl,                     // ← 关键：通知卡片点击跳转
     data: {
       title: { value: title, color: titleColor },
       content: { value: content, color: contentColor }
@@ -121,12 +126,11 @@ async function sendTemplateMessage(env, token, openid, title, content, clickUrl,
 
   const resp = await fetch(sendUrl, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
-  
+
   const result = await resp.json();
-  if (result.errcode !== 0) {
-    throw new Error(`发送失败: ${result.errmsg}`);
-  }
+  if (result.errcode !== 0) throw new Error(result.errmsg);
   return { msgid: result.msgid };
 }
